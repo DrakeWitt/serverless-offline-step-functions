@@ -1,10 +1,11 @@
 const child_process = require('child_process');
 const _ = require('lodash');
 const fs = require('fs');
-const jsonPath = require('jsonpath');
+const {JSONPath} = require('jsonpath-plus');
 const choiceProcessor = require('./choice-processor');
 const stateTypes = require('./state-types');
 const StateRunTimeError = require('./state-machine-error');
+const path = require('path');
 
 const logPrefix = '[Serverless Offline Step Functions]:';
 
@@ -196,7 +197,7 @@ class StateMachineExecutor {
         if ((stateInfo.Seconds && _.isNaN(+stateInfo.Seconds))) {
             milliseconds = +stateInfo.Seconds * 1000
         } else if (stateInfo.SecondsPath && input) {
-            milliseconds = +jsonPath.query(input, stateInfo.SecondsPath)[0] * 1000;
+            milliseconds = +JSONPath(stateInfo.SecondsPath, input)[0] * 1000;
         } else if (stateInfo.Timestamp) {
             const waitDate = new Date(stateInfo.Timestamp);
             if (waitDate.getTime() < Date.now()) {
@@ -205,7 +206,11 @@ class StateMachineExecutor {
                 milliseconds = waitDate.getTime() - Date.now();
             }
         } else if (stateInfo.TimestampPath && input) {
-            const waitDate = new Date(jsonPath.query(input, stateInfo.TimestampPath)[0]);
+            if (!(input instanceof Object)) {
+                input = JSON.parse(input);
+            }
+
+            const waitDate = new Date(JSONPath(stateInfo.TimestampPath, input)[0]);
             if (waitDate.getTime() < Date.now()) {
                 milliseconds = 0;
             } else {
@@ -237,7 +242,12 @@ class StateMachineExecutor {
             input = {};
         } else {
             input = input ? input : {};
-            jsonPath.query(input, stateInfo.InputPath, (data) => {
+
+            if (!(input instanceof Object)) {
+                input = JSON.parse(input);
+            }
+
+            JSONPath(stateInfo.InputPath, input, (data) => {
                 input = Object.assign({}, data);
             });
         }
@@ -260,7 +270,7 @@ class StateMachineExecutor {
         // For more information, see Input and Output Processing.
         // https://docs.aws.amazon.com/step-functions/latest/dg/amazon-states-language-common-fields.html
         const path = typeof stateInfo.ResultPath === 'undefined' ? '$' : stateInfo.ResultPath;
-        const processed = jsonPath.query(resultData, path);
+        const processed = JSONPath(path, resultData);
 
         if (typeof processed === 'undefined' || processed.length === 0) {
             return this.endStateMachine(
@@ -285,7 +295,11 @@ class StateMachineExecutor {
     processTaskOutputPath(data, path) {
         let output = null;
         if (path !== null) {
-            output = jsonPath.query(data, path || '$')[0];
+            if (!(data instanceof Object)) {
+                data = JSON.parse(data);
+            }
+
+            output = JSONPath(path || '$', data)[0];
 
             if (!output) {
                 return this.endStateMachine(

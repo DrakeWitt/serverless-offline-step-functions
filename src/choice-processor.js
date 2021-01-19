@@ -1,5 +1,5 @@
 const _ = require('lodash');
-const jsonPath = require('jsonpath');
+const {JSONPath} = require('jsonpath-plus');
 const StateMachineError = require('./state-machine-error');
 
 // The following comparison operators are supported:
@@ -110,7 +110,7 @@ class ChoiceProcessor {
             throw new Error('no "Variable" attribute found in Choice rule');
         }
 
-        let inputValue = jsonPath.query(data, choice.Variable)[0];
+        let inputValue = JSONPath(choice.Variable, data)[0];
         let choiceValue = choice[choiceComparator];
         if (choice[choiceComparator] === 'TimestampEquals' === 0) {
             choiceValue = (new Date(choiceValue)).getTime();
